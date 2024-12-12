@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+    <title>Dashboard - Netflix Analytics</title>
+    <!-- Simple-DataTables CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='dist/css/styles.css') }}" rel="stylesheet" />
+    <!-- FontAwesome -->
+    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="sb-nav-fixed">
+    <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
+        <a class="navbar-brand ps-3" href="/">Netflix</a>
+        <button class="btn btn-link btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+    </nav>
+    <div id="layoutSidenav">
+        <div id="layoutSidenav_nav">
+            <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
+                <div class="sb-sidenav-menu">
+                    <div class="nav">
+                        <div class="sb-sidenav-menu-heading">Core</div>
+                        <a class="nav-link" href="/">
+                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                            Dashboard
+                        </a>
+                        <a class="nav-link" href="/analysis">
+                            <div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div>
+                            Analysis
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        <div id="layoutSidenav_content">
+            <main>
+                <div class="container-fluid px-4">
+                    <h1 class="mt-4">Holiday Releases Impact on Viewership?!</h1>
+                    
+                    <!-- Charts Section -->
+                    <div class="row">
+                        <!-- Release Month Chart -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-chart-line me-1"></i>
+                                    Total Viewership Hours by Release Month
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="releaseMonthChart" width="100%" height="50"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Weekly Release Patterns -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-chart-bar me-1"></i>
+                                    Weekly Release Patterns and Viewership Hours
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="weeklyChart" width="100%" height="50"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Charts and Table Section -->
+                    <div class="row">
+                        <!-- Holiday Releases vs Non-Holiday Releases Pie Chart -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-chart-pie me-1"></i>
+                                    Holiday Releases vs Non-Holiday Releases
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="holidayPieChart" width="100%" ></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Holiday Releases Summary Table -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-table me-1"></i>
+                                    Holiday Releases Summary
+                                </div>
+                                <div class="card-body">
+                                    <div id="holidaySummary" class="mb-3">
+                                        <!-- Summary will be inserted here -->
+                                    </div>
+                                    <table id="holidayTable" class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Title</th>
+                                                <th>Release Date</th>
+                                                <th>Hours Viewed</th>
+                                                <th>Language Indicator</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Dynamic content will be inserted here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!-- end row -->
+                </div><!-- end container-fluid px-4 -->
+            </main>
+        </div><!-- end layoutSidenav_content -->
+    </div><!-- end layoutSidenav -->
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Simple-DataTables JS -->
+    <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 取得 Release Month 的資料並繪製圖表
+            fetch('/release-month')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Release Month Data:', data);
+                    if (!data.months || !data.values || !data.monthly_releases) {
+                        console.error('Invalid data for release-month:', data);
+                        return;
+                    }
+    
+                    const ctx = document.getElementById('releaseMonthChart').getContext('2d');
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+                    new Chart(ctx, {
+                        type: "bar",
+                        data: {
+                            labels: monthNames,
+                            datasets: [
+                                {
+                                    label: "Viewership Hours (in billions)",
+                                    data: data.values.map(v => v / 1e9),
+                                    type: "line",
+                                    backgroundColor: "rgba(229, 9, 20, 0.2)",
+                                    borderColor: "#E50914",
+                                    borderWidth: 2,
+                                    pointBackgroundColor: "#E50914",
+                                    pointBorderColor: "#E50914",
+                                    tension: 0.4,
+                                    yAxisID: "y2"
+                                },{
+                                    label: "Number of Releases",
+                                    data: data.monthly_releases,
+                                    backgroundColor: "#6C757D", 
+                                    borderColor: "#6C757D", 
+                                    borderWidth: 1,
+                                    yAxisID: "y1"
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y1: {
+                                    type: "linear",
+                                    position: "left",
+                                    title: {
+                                        display: true,
+                                        text: "Number of Releases",
+                                        color: "#6C757D"
+                                    },
+                                    ticks: {
+                                        beginAtZero: false,
+                                        color: "#6C757D"
+                                    },
+                                    grid: {
+                                        color: "rgba(229, 9, 20, 0.2)"
+                                    }
+                                },
+                                y2: {
+                                    type: "linear",
+                                    position: "right",
+                                    title: {
+                                        display: true,
+                                        text: "Viewership Hours (in billions)",
+                                        color: "#6C757D"
+                                    },
+                                    ticks: {
+                                        min: 0,
+                                        max: Math.max(...data.values.map(v => v / 1e9)) + 1,
+                                        stepSize: 1,
+                                        callback: function(value) {
+                                            return value.toFixed(2) + "B";
+                                        },
+                                        color: "#6C757D"
+                                    },
+                                    grid: {
+                                        drawOnChartArea: false
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: "Months",
+                                        color: "#6C757D"
+                                    },
+                                    ticks: {
+                                        color: "#6C757D"
+                                    },
+                                    grid: {
+                                        color: "rgba(229, 9, 20, 0.1)"
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: "top",
+                                    labels: {
+                                        color: "#6C757D"
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const datasetLabel = context.dataset.label || '';
+                                            const value = context.raw;
+                                            if (context.dataset.yAxisID === 'y2') {
+                                                return `${datasetLabel}: ${value.toFixed(2)}B`;
+                                            } else {
+                                                return `${datasetLabel}: ${value}`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching release-month data:', error));
+    
+            // 取得 weekly data 並繪製圖表
+            fetch('/release-weekly')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Weekly Data:', data);
+                    if (!data.weekdays || !data.releases || !data.viewership) {
+                        console.error('Invalid data for release-weekly:', data);
+                        return;
+                    }
+    
+                    const ctx = document.getElementById('weeklyChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: "bar",
+                        data: {
+                            labels: data.weekdays,
+                            datasets: [
+                                {
+                                    label: "Viewership Hours (in billions)",
+                                    data: data.viewership,
+                                    type: "line",
+                                    backgroundColor: "rgba(229, 9, 20, 0.2)",
+                                    borderColor: "#E50914",
+                                    borderWidth: 2,
+                                    pointBackgroundColor: "#E50914",
+                                    pointBorderColor: "#E50914",
+                                    tension: 0.4,
+                                    yAxisID: "y2"
+                                },{
+                                    label: "Number of Releases",
+                                    data: data.releases,
+                                    backgroundColor: "#6C757D",
+                                    borderColor: "#6C757D",
+                                    borderWidth: 1,
+                                    yAxisID: "y1"
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y1: {
+                                    type: "linear",
+                                    position: "left",
+                                    title: {
+                                        display: true,
+                                        text: "Number of Releases",
+                                        color: "#6C757D"
+                                    },
+                                    ticks: {
+                                        beginAtZero: true,
+                                        color: "#6C757D"
+                                    },
+                                    grid: {
+                                        color: "rgba(229, 9, 20, 0.2)"
+                                    }
+                                },
+                                y2: {
+                                    type: "linear",
+                                    position: "right",
+                                    title: {
+                                        display: true,
+                                        text: "Viewership Hours (in billions)",
+                                        color: "#6C757D"
+                                    },
+                                    ticks: {
+                                        min: 0,
+                                        max: Math.max(...data.viewership) + 1,
+                                        stepSize: 1,
+                                        callback: function(value) {
+                                            return value + "B";
+                                        },
+                                        color: "#6C757D"
+                                    },
+                                    grid: {
+                                        drawOnChartArea: false
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: "Day of the Week",
+                                        color: "#6C757D"
+                                    },
+                                    ticks: {
+                                        color: "#6C757D"
+                                    },
+                                    grid: {
+                                        color: "rgba(229, 9, 20, 0.1)"
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: "top",
+                                    labels: {
+                                        color: "#6C757D"
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching release-weekly data:', error));
+    
+            // 取得 Holiday Releases 資料並繪製表格與圓餅圖
+            fetch('/holiday_release')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Holiday Release Data:', data);
+                    const tableBody = document.querySelector('#holidayTable tbody');
+    
+                    // 清空表格
+                    tableBody.innerHTML = '';
+    
+                    // 插入數據（僅前 10 個）
+                    data.holiday_releases.slice(0, 10).forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${item.Title}</td>
+                            <td>${new Date(item['Release Date']).toLocaleDateString()}</td>
+                            <td>${item['Hours Viewed'].toLocaleString()} hours</td>
+                            <td>${item['Language Indicator']}</td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+    
+                    // 初始化 DataTable
+                    const dataTable = new simpleDatatables.DataTable("#holidayTable", {
+                        perPage: 10,
+                        searchable: true,
+                        fixedHeight: true
+                    });
+    
+    
+                    // 繪製圓餅圖
+                    const pieCtx = document.getElementById('holidayPieChart').getContext('2d');
+                    new Chart(pieCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Holiday Releases', 'Non-Holiday Releases'],
+                            datasets: [{
+                                data: [data.holiday_release_count, data.non_holiday_release_count],
+                                backgroundColor: [
+                                    '#E50914', // Netflix紅
+                                    'rgba(34, 31, 31, 0.6)'  // 深色 (接近黑色)
+                                ],
+                                borderColor: [
+                                    '#E50914',
+                                    'rgba(34, 31, 31, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                    labels: {
+                                        color: "#6C757D"
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed;
+                                            const total = context.chart._metasets[context.datasetIndex].total;
+                                            const percentage = ((value / total) * 100).toFixed(2);
+                                            return `${label}: ${value} (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching holiday_release data:', error));
+        });
+    </script>
+</body>
+</html>
